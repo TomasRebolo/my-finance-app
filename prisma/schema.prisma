@@ -9,6 +9,84 @@ generator client {
 model User {
   id          String   @id @default(cuid())
   clerkUserId String   @unique
-  email       String?
+  email       String
   createdAt   DateTime @default(now())
+
+  bankConnections BankConnection[]
+}
+
+model BankConnection {
+  id              String @id @default(cuid())
+  userId          String
+  provider        String // plaid | truelayer | tink | mock
+  providerItemId  String // item_id / consent_id
+  institutionName String
+  institutionId   String
+
+  accessToken  String // encrypted later
+  refreshToken String? // encrypted later
+
+  lastSyncedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accounts   Account[]
+  syncCursor SyncCursor?
+
+  @@unique([provider, providerItemId])
+  @@index([userId])
+}
+
+model Account {
+  id               String @id @default(cuid())
+  bankConnectionId String
+
+  providerAccountId String
+  name              String
+  type              String // checking | savings | credit
+  currency          String
+  balance           Decimal  @db.Decimal(18, 2)
+  availableBalance  Decimal? @db.Decimal(18, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bankConnection BankConnection @relation(fields: [bankConnectionId], references: [id], onDelete: Cascade)
+  transactions   Transaction[]
+
+  @@unique([bankConnectionId, providerAccountId])
+  @@index([bankConnectionId])
+}
+
+model Transaction {
+  id        String @id @default(cuid())
+  accountId String
+
+  providerTransactionId String
+  amount                Decimal @db.Decimal(18, 2)
+  currency              String
+  description           String
+  category              String?
+  merchant              String?
+
+  date    DateTime
+  pending Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, providerTransactionId])
+  @@index([date])
+  @@index([accountId, date])
+}
+
+model SyncCursor {
+  id               String   @id @default(cuid())
+  bankConnectionId String   @unique
+  cursor           String
+  updatedAt        DateTime @updatedAt
+
+  bankConnection BankConnection @relation(fields: [bankConnectionId], references: [id], onDelete: Cascade)
 }

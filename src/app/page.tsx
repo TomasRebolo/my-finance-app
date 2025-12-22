@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
+import { ensureUser } from "@/server/auth/ensureUser";
 
-export default function Home() {
+export default async function Home() {
   return (
     <main className="p-8">
       <div className="flex items-center justify-between">
@@ -23,8 +24,20 @@ export default function Home() {
       </SignedOut>
 
       <SignedIn>
-        <p className="mt-6 text-sm text-green-700">You are signed in ✅</p>
+        {/** This line is the important one */}
+        <DbUserDebug />
       </SignedIn>
     </main>
+  );
+}
+
+async function DbUserDebug() {
+  const user = await ensureUser();
+  return (
+    <div className="mt-6 rounded border p-4 text-sm">
+      <div><b>DB user id:</b> {user.id}</div>
+      <div><b>Clerk user id:</b> {user.clerkUserId}</div>
+      <div><b>Email:</b> {user.email ?? "—"}</div>
+    </div>
   );
 }
