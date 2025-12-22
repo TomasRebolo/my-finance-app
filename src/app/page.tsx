@@ -1,32 +1,30 @@
-import { prisma } from "@/server/db/prisma";
-import { auth } from "@clerk/nextjs/server";
+import Link from "next/link";
+import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 
-export default async function Home() {
-  const { userId } = await auth(); // 👈 IMPORTANT
-  const userCount = await prisma.user.count();
-
+export default function Home() {
   return (
     <main className="p-8">
-      <h1 className="text-2xl font-semibold">My Finance App</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">My Finance App</h1>
+        <SignedIn>
+          <UserButton />
+        </SignedIn>
+      </div>
 
-      <p className="mt-2 text-sm text-gray-600">
-        Database connected ✅ Users: {userCount}
-      </p>
+      <SignedOut>
+        <div className="mt-6 flex gap-3">
+          <Link className="px-4 py-2 rounded border" href="/sign-in">
+            Sign in
+          </Link>
+          <Link className="px-4 py-2 rounded border" href="/sign-up">
+            Create account
+          </Link>
+        </div>
+      </SignedOut>
 
-      <p className="mt-2 text-sm">
-        Auth status:{" "}
-        {userId ? (
-          <span className="text-green-600">Signed in</span>
-        ) : (
-          <span className="text-red-600">Not signed in</span>
-        )}
-      </p>
-
-      {userId && (
-        <p className="mt-1 text-xs text-gray-500">
-          Clerk userId: {userId}
-        </p>
-      )}
+      <SignedIn>
+        <p className="mt-6 text-sm text-green-700">You are signed in ✅</p>
+      </SignedIn>
     </main>
   );
 }
