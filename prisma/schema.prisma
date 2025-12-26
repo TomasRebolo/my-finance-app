@@ -18,8 +18,9 @@ model User {
 model BankConnection {
   id              String @id @default(cuid())
   userId          String
-  provider        String // plaid | truelayer | tink | mock
+  provider        String // plaid | truelayer | tink | yapily | mock
   providerItemId  String // item_id / consent_id
+  consentId       String? // yapily consent_id
   institutionName String
   institutionId   String
 
@@ -89,4 +90,27 @@ model SyncCursor {
   updatedAt        DateTime @updatedAt
 
   bankConnection BankConnection @relation(fields: [bankConnectionId], references: [id], onDelete: Cascade)
+}
+
+model Institution {
+  id               String    @id
+  name             String
+  fullName         String
+  countries        Country[]
+  logoUrl          String
+  iconUrl          String
+  primaryColor     String
+  credentialsType  String
+  media            Json
+  features         Json
+  status           String
+  statusUpdateAt   DateTime?
+  monitoring         Json
+}
+
+model Country {
+  countryCode2 String @id
+  displayName  String
+
+  institutions Institution[]
 }
