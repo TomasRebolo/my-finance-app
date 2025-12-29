@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/server/db/prisma";
 import yahooFinance from "yahoo-finance2";
 import { ImportPortfolioButton } from "@/components/import-portfolio-button";
+import { ensureUser } from "@/server/auth/ensureUser";
 
 function formatMoney(value: string | number, currency: string) {
   const n = typeof value === "string" ? Number(value) : value;
@@ -14,11 +14,10 @@ function formatMoney(value: string | number, currency: string) {
 }
 
 export default async function DashboardPage() {
-  const { userId: clerkUserId } = await auth();
-  if (!clerkUserId) redirect("/sign-in");
+  const user = await ensureUser();
 
-  const user = await prisma.user.findUnique({
-    where: { clerkUserId },
+  const userWithHoldings = await prisma.user.findUnique({
+    where: { id: user.id },
     include: {
       holdings: {
         include: {
@@ -27,7 +26,7 @@ export default async function DashboardPage() {
       },
     },
   });
-  if (!user) redirect("/");
+  if (!userWithHoldings) redirect("/");
 
   const accounts = await prisma.account.findMany({
     where: { bankConnection: { userId: user.id } },
@@ -36,10 +35,10 @@ export default async function DashboardPage() {
 
   const total = accounts.reduce((sum, a) => sum + Number(a.balance), 0);
 
-  const symbols = user.holdings.map((h) => h.investment.symbol);
+  const symbols = userWithHoldings.holdings.map((h) => h.investment.symbol);
   const quotes = await fetchQuotesSafely(symbols);
 
-  const holdingsWithCurrentPrice = user.holdings.map((holding) => {
+  const holdingsWithCurrentPrice = userWithHoldings.holdings.map((holding) => {
     const quote = quotes.find((q) => q.symbol === holding.investment.symbol);
     const fallbackPrice = Number(holding.price) || 0;
     const currentPrice = quote?.regularMarketPrice ?? fallbackPrice;
