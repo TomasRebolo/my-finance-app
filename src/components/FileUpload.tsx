@@ -30,10 +30,14 @@ export default function FileUpload() {
     formData.append("file", file);
 
     try {
-      const result = await importFile(formData);
+      await importFile(formData);
       setSuccess("File imported successfully!");
-    } catch (err: any) {
-      setError(err.message || "An error occurred during file import.");
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("An error occurred during file import.");
+      }
     } finally {
       setLoading(false);
     }

@@ -3,6 +3,14 @@ import { type NextRequest } from "next/server";
 import { ensureUser } from "@/server/auth/ensureUser";
 import { prisma } from "@/server/db/prisma";
 
+type YapilyTransaction = {
+  id: string;
+  amount: number;
+  currency: string;
+  description: string;
+  date: string;
+};
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const oneTimeToken = searchParams.get("consent");
@@ -105,10 +113,12 @@ export async function GET(request: NextRequest) {
       continue;
     }
 
-    const transactions = await transactionsResponse.json();
+    const transactions = (await transactionsResponse.json()) as {
+      data: YapilyTransaction[];
+    };
 
     await prisma.transaction.createMany({
-      data: transactions.data.map((t: any) => ({
+      data: transactions.data.map((t) => ({
         accountId: createdAccount.id,
         providerTransactionId: t.id,
         amount: t.amount,
