@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/server/db/prisma";
 import yahooFinance from "yahoo-finance2";
+import { ImportPortfolioButton } from "@/components/import-portfolio-button";
 
 function formatMoney(value: string | number, currency: string) {
   const n = typeof value === "string" ? Number(value) : value;
@@ -36,7 +37,7 @@ export default async function DashboardPage() {
   const total = accounts.reduce((sum, a) => sum + Number(a.balance), 0);
 
   const symbols = user.holdings.map((h) => h.investment.symbol);
-  const quotes = await yahooFinance.quote(symbols);
+  const quotes = symbols.length > 0 ? await yahooFinance.quote(symbols) : [];
 
   const holdingsWithCurrentPrice = user.holdings.map((holding) => {
     const quote = quotes.find((q) => q.symbol === holding.investment.symbol);
@@ -60,6 +61,7 @@ export default async function DashboardPage() {
         </h1>
 
         <div className="flex gap-2">
+          <ImportPortfolioButton />
           <Link href="/add-account">
             <button className="rounded-md bg-blue-500 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600">
               Add Bank Account
