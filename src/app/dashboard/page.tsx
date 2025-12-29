@@ -37,14 +37,22 @@ export default async function DashboardPage() {
   const total = accounts.reduce((sum, a) => sum + Number(a.balance), 0);
 
   const symbols = user.holdings.map((h) => h.investment.symbol);
-  const quotes = symbols.length > 0 ? await yahooFinance.quote(symbols) : [];
+  const quotes = await fetchQuotesSafely(symbols);
 
   const holdingsWithCurrentPrice = user.holdings.map((holding) => {
     const quote = quotes.find((q) => q.symbol === holding.investment.symbol);
+    const fallbackPrice = Number(holding.price) || 0;
+    const currentPrice = quote?.regularMarketPrice ?? fallbackPrice;
+    const change = quote?.regularMarketChange ?? 0;
+
+    const previousPrice = currentPrice - change;
+    const percentageChange = previousPrice !== 0 ? (change / previousPrice) * 100 : 0;
+
     return {
       ...holding,
-      currentPrice: quote?.regularMarketPrice ?? 0,
-      change: quote?.regularMarketChange ?? 0,
+      currentPrice,
+      change,
+      percentageChange,
     };
   });
 
@@ -119,7 +127,7 @@ export default async function DashboardPage() {
                       {formatMoney(h.currentPrice * Number(h.quantity), h.investment.currency)}
                     </div>
                     <div className={`text-sm ${h.change >= 0 ? "text-green-500" : "text-red-500"}`}>
-                      {h.change.toFixed(2)} ({((h.change / (h.currentPrice - h.change)) * 100).toFixed(2)}%)
+                      {h.change.toFixed(2)} ({h.percentageChange.toFixed(2)}%)
                     </div>
                   </div>
                 </div>
@@ -204,4 +212,22 @@ function BankIcon(props: React.ComponentProps<"svg">) {
       <path d="M5 7l7-4 7 4" />
     </svg>
   );
+}
+
+async function fetchQuotesSafely(symbols: string[]) {
+  if (symbols.length === 0) {
+    return [];
+  }
+
+  try {
+    const result = await yahooFinance.quote(symbols);
+    const quotes = Array.isArray(result) ? result : [result];
+    return quotes.filter(
+      (quote): quote is NonNullable<typeof quotes[number]> =>
+        Boolean(quote && "symbol" in quote)
+    );
+  } catch (error) {
+    console.error("Failed to fetch quotes from Yahoo Finance", error);
+    return [];
+  }
 }
