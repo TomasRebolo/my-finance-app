@@ -41,98 +41,104 @@ export default async function AccountPage({
   if (!account) redirect("/dashboard");
 
   return (
-    <main className="p-4 sm:p-6 lg:p-8">
-      <div className="mb-8">
-        <Link
-          href="/dashboard"
-          className="flex items-center space-x-2 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
-        >
+    <main className="min-h-screen bg-slate-950 text-slate-50">
+      <div className="mx-auto max-w-5xl px-4 py-10 space-y-6">
+        <div className="flex items-center gap-3 text-sm text-emerald-200">
           <ArrowLeftIcon className="h-5 w-5" />
-          <span>Back to Dashboard</span>
-        </Link>
-      </div>
-
-      <div className="rounded-lg bg-white p-6 shadow-sm dark:bg-gray-800">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              {account.name}
-            </h1>
-            <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {account.bankConnection.institutionName} •{" "}
-              {account.type.toUpperCase()}
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-sm font-medium text-gray-500 dark:text-gray-400">
-              Balance
-            </div>
-            <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-100">
-              {formatMoney(account.balance.toString(), account.currency)}
-            </div>
-          </div>
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-2 rounded-full border border-slate-800 px-4 py-2 font-semibold transition hover:border-emerald-400 hover:text-white"
+          >
+            Back to dashboard
+          </Link>
         </div>
-      </div>
 
-      <div className="mt-8">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-          Recent transactions
-        </h2>
-        <div className="mt-4 overflow-hidden rounded-lg bg-white shadow-sm dark:bg-gray-800">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-700/50">
-              <tr>
-                <th className="px-6 py-3 text-left font-medium text-gray-500 dark:text-gray-400">
-                  Date
-                </th>
-                <th className="px-6 py-3 text-left font-medium text-gray-500 dark:text-gray-400">
-                  Description
-                </th>
-                <th className="px-6 py-3 text-left font-medium text-gray-500 dark:text-gray-400">
-                  Merchant
-                </th>
-                <th className="px-6 py-3 text-right font-medium text-gray-500 dark:text-gray-400">
-                  Amount
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {account.transactions.length === 0 ? (
+        <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 via-emerald-600 to-slate-900 p-8 shadow-2xl ring-1 ring-white/10">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-emerald-50/80">
+                Account overview
+              </p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight">
+                {account.name}
+              </h1>
+              <div className="mt-1 text-sm text-emerald-50/80">
+                {account.bankConnection.institutionName} • {account.type.toUpperCase()}
+              </div>
+            </div>
+            <div className="rounded-2xl bg-white/10 px-5 py-4 text-right backdrop-blur-md ring-1 ring-white/10">
+              <p className="text-xs uppercase tracking-wide text-emerald-50/80">Balance</p>
+              <p className="text-3xl font-semibold text-white">
+                {formatMoney(account.balance.toString(), account.currency)}
+              </p>
+              {account.availableBalance !== null && (
+                <p className="text-sm text-emerald-50/80">
+                  Available:{" "}
+                  <span className="font-semibold text-white">
+                    {formatMoney(account.availableBalance.toString(), account.currency)}
+                  </span>
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/70 shadow-lg shadow-black/20">
+          <div className="flex items-center justify-between px-6 py-4">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-emerald-400">Activity</p>
+              <h2 className="text-xl font-semibold text-white">Recent transactions</h2>
+            </div>
+            <span className="rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-300">
+              Last {account.transactions.length} items
+            </span>
+          </div>
+          <div className="overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-900/80 text-slate-300">
                 <tr>
-                  <td
-                    className="px-6 py-8 text-center text-gray-500 dark:text-gray-400"
-                    colSpan={4}
-                  >
-                    No transactions found.
-                  </td>
+                  <th className="px-6 py-3 text-left font-semibold">Date</th>
+                  <th className="px-6 py-3 text-left font-semibold">Description</th>
+                  <th className="px-6 py-3 text-left font-semibold">Merchant</th>
+                  <th className="px-6 py-3 text-right font-semibold">Amount</th>
                 </tr>
-              ) : (
-                account.transactions.map((t) => (
-                  <tr key={t.id}>
-                    <td className="px-6 py-4 text-gray-500 dark:text-gray-400">
-                      {t.date.toISOString().slice(0, 10)}
-                    </td>
-                    <td className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100">
-                      {t.description}
-                    </td>
-                    <td className="px-6 py-4 text-gray-500 dark:text-gray-400">
-                      {t.merchant ?? "—"}
-                    </td>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {account.transactions.length === 0 ? (
+                  <tr>
                     <td
-                      className={`px-6 py-4 text-right font-semibold ${
-                        Number(t.amount) > 0
-                          ? "text-green-600"
-                          : "text-red-600"
-                      }`}
+                      className="px-6 py-8 text-center text-slate-400"
+                      colSpan={4}
                     >
-                      {formatMoney(t.amount.toString(), t.currency)}
+                      No transactions found.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ) : (
+                  account.transactions.map((t) => (
+                    <tr key={t.id} className="hover:bg-slate-900/60">
+                      <td className="px-6 py-4 text-slate-300">
+                        {t.date.toISOString().slice(0, 10)}
+                      </td>
+                      <td className="px-6 py-4 font-semibold text-white">
+                        {t.description}
+                      </td>
+                      <td className="px-6 py-4 text-slate-400">
+                        {t.merchant ?? "—"}
+                      </td>
+                      <td
+                        className={`px-6 py-4 text-right font-semibold ${
+                          Number(t.amount) > 0 ? "text-emerald-300" : "text-rose-300"
+                        }`}
+                      >
+                        {formatMoney(t.amount.toString(), t.currency)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </main>
   );

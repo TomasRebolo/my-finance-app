@@ -74,113 +74,121 @@ export default function AddInvestmentPage() {
   };
 
   return (
-    <main className="p-4 sm:p-6 lg:p-8">
-      <div className="max-w-lg mx-auto">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-          Add Investment
-        </h1>
-        <p className="mt-2 text-gray-600 dark:text-gray-400">
-          Search for a stock or ETF and add it to your portfolio.
-        </p>
+    <main className="min-h-screen bg-slate-950 text-slate-50">
+      <div className="mx-auto max-w-3xl px-4 py-10">
+        <div className="rounded-3xl bg-gradient-to-br from-emerald-500 via-emerald-600 to-slate-900 p-8 shadow-2xl ring-1 ring-white/10">
+          <p className="text-xs uppercase tracking-[0.2em] text-emerald-50/80">
+            Inspired by getquin
+          </p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">
+            Add an investment without the clutter
+          </h1>
+          <p className="mt-2 max-w-2xl text-emerald-50/80">
+            Search for a stock or ETF, pick the right one, and enter your fills—all inside a compact, friendly card.
+          </p>
 
-        <div className="mt-8 flex gap-2">
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search for a symbol (e.g., AAPL)"
-            className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-          />
-          <button
-            onClick={handleSearch}
-            disabled={loading || !query}
-            className="rounded-md bg-blue-500 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600 disabled:opacity-50"
-          >
-            {loading ? "Searching..." : "Search"}
-          </button>
-        </div>
-
-        <div className="mt-6">
-          {results.length > 0 && !selectedSymbol && (
-            <ul className="divide-y divide-gray-200">
-              {results.map((result) => (
-                <li key={result.symbol} className="py-4 flex justify-between items-center">
-                  <div>
-                    <p className="font-semibold">{result.symbol}</p>
-                    <p className="text-sm text-gray-500">{result.shortname}</p>
-                  </div>
-                  <button
-                    onClick={() => setSelectedSymbol(result)}
-                    className="rounded-md bg-green-500 px-3 py-1 text-sm font-semibold text-white hover:bg-green-600"
-                  >
-                    Add
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {selectedSymbol && (
-            <div className="mt-6">
-              <h2 className="text-xl font-semibold">
-                Add {selectedSymbol.symbol} to your portfolio
-              </h2>
-              <div className="mt-4 space-y-4">
-                <div>
-                  <label htmlFor="quantity" className="block text-sm font-medium text-gray-700">
-                    Quantity
-                  </label>
-                  <input
-                    type="number"
-                    id="quantity"
-                    value={quantity}
-                    onChange={(e) => setQuantity(e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="price" className="block text-sm font-medium text-gray-700">
-                    Purchase Price
-                  </label>
-                  <input
-                    type="number"
-                    id="price"
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleAddHolding}
-                    disabled={loading || !quantity || !price}
-                    className="w-full rounded-md bg-blue-500 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-600 disabled:opacity-50"
-                  >
-                    {loading ? "Adding..." : "Add Holding"}
-                  </button>
-                  <button
-                    onClick={() => setSelectedSymbol(null)}
-                    className="w-full rounded-md bg-gray-200 px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-300"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
+          <div className="mt-8 rounded-2xl bg-slate-900/70 p-6 ring-1 ring-emerald-400/30">
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search for a symbol (e.g., AAPL)"
+                className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-3 text-sm text-white outline-none ring-emerald-500/40 transition focus:border-emerald-400"
+              />
+              <button
+                onClick={handleSearch}
+                disabled={loading || !query}
+                className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:-translate-y-0.5 hover:bg-emerald-600 hover:shadow-emerald-500/50 disabled:translate-y-0 disabled:opacity-50"
+              >
+                {loading ? "Searching..." : "Search"}
+              </button>
             </div>
-          )}
+
+            <div className="mt-6 space-y-4">
+              {results.length > 0 && !selectedSymbol && (
+                <ul className="divide-y divide-slate-800 rounded-xl border border-slate-800 bg-slate-950/70">
+                  {results.map((result) => (
+                    <li key={result.symbol} className="flex items-center justify-between gap-3 px-4 py-3">
+                      <div>
+                        <p className="font-semibold text-white">{result.symbol}</p>
+                        <p className="text-sm text-slate-400">{result.shortname}</p>
+                      </div>
+                      <button
+                        onClick={() => setSelectedSymbol(result)}
+                        className="rounded-full bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-600"
+                      >
+                        Add
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {selectedSymbol && (
+                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-emerald-300">Selected</p>
+                      <h2 className="text-lg font-semibold text-white">
+                        {selectedSymbol.symbol} • {selectedSymbol.shortname}
+                      </h2>
+                      <p className="text-sm text-slate-400">Currency: {selectedSymbol.currency}</p>
+                    </div>
+                    <button
+                      onClick={() => setSelectedSymbol(null)}
+                      className="rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-emerald-400"
+                    >
+                      Change
+                    </button>
+                  </div>
+
+                  <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                    <label className="space-y-2 text-sm text-slate-200">
+                      Quantity
+                      <input
+                        type="number"
+                        id="quantity"
+                        value={quantity}
+                        onChange={(e) => setQuantity(e.target.value)}
+                        className="w-full rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-white outline-none ring-emerald-500/40 transition focus:border-emerald-400"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-200">
+                      Purchase price
+                      <input
+                        type="number"
+                        id="price"
+                        value={price}
+                        onChange={(e) => setPrice(e.target.value)}
+                        className="w-full rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-white outline-none ring-emerald-500/40 transition focus:border-emerald-400"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                    <button
+                      onClick={handleAddHolding}
+                      disabled={loading || !quantity || !price}
+                      className="w-full rounded-full bg-emerald-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:-translate-y-0.5 hover:bg-emerald-600 hover:shadow-emerald-500/50 disabled:translate-y-0 disabled:opacity-50"
+                    >
+                      {loading ? "Adding..." : "Save holding"}
+                    </button>
+                    <button
+                      onClick={() => setSelectedSymbol(null)}
+                      className="w-full rounded-full border border-slate-700 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-emerald-400"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {error && <div className="text-sm text-rose-300">{error}</div>}
+            {success && <div className="text-sm text-emerald-200">{success}</div>}
+          </div>
         </div>
-
-        {error && (
-          <div className="mt-4 text-sm text-red-600">
-            {error}
-          </div>
-        )}
-
-        {success && (
-          <div className="mt-4 text-sm text-green-600">
-            {success}
-          </div>
-        )}
       </div>
     </main>
   );
