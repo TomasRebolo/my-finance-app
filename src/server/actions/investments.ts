@@ -1,7 +1,7 @@
 "use server";
 
 import { currentUser } from "@clerk/nextjs/server";
-import { db } from "@/server/db/prisma";
+import { prisma } from "@/server/db/prisma";
 import { revalidatePath } from "next/cache";
 
 interface AddHoldingArgs {
@@ -25,7 +25,7 @@ export async function addHolding({
     throw new Error("You must be logged in to add a holding.");
   }
 
-  const dbUser = await db.user.findUnique({
+  const dbUser = await prisma.user.findUnique({
     where: { clerkUserId: user.id },
   });
 
@@ -33,12 +33,12 @@ export async function addHolding({
     throw new Error("User not found.");
   }
 
-  let investment = await db.investment.findUnique({
+  let investment = await prisma.investment.findUnique({
     where: { symbol },
   });
 
   if (!investment) {
-    investment = await db.investment.create({
+    investment = await prisma.investment.create({
       data: {
         symbol,
         name,
@@ -47,7 +47,7 @@ export async function addHolding({
     });
   }
 
-  await db.holding.create({
+  await prisma.holding.create({
     data: {
       userId: dbUser.id,
       investmentId: investment.id,
