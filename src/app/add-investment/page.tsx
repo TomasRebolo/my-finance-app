@@ -4,11 +4,19 @@ import { useState } from "react";
 import { searchSymbols } from "@/server/actions/yahoo";
 import { addHolding } from "@/server/actions/investments";
 
+type SearchResult = {
+  symbol: string;
+  shortname: string;
+  currency: string;
+};
+
 export default function AddInvestmentPage() {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedSymbol, setSelectedSymbol] = useState<any | null>(null);
+  const [selectedSymbol, setSelectedSymbol] = useState<SearchResult | null>(
+    null
+  );
   const [quantity, setQuantity] = useState("");
   const [price, setPrice] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -24,8 +32,12 @@ export default function AddInvestmentPage() {
     try {
       const searchResults = await searchSymbols(query);
       setResults(searchResults);
-    } catch (err: any) {
-      setError(err.message || "An error occurred while searching.");
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("An error occurred while searching.");
+      }
     } finally {
       setLoading(false);
     }
@@ -50,8 +62,12 @@ export default function AddInvestmentPage() {
       setSelectedSymbol(null);
       setQuantity("");
       setPrice("");
-    } catch (err: any) {
-      setError(err.message || "An error occurred while adding the holding.");
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("An error occurred while adding the holding.");
+      }
     } finally {
       setLoading(false);
     }
@@ -87,7 +103,7 @@ export default function AddInvestmentPage() {
         <div className="mt-6">
           {results.length > 0 && !selectedSymbol && (
             <ul className="divide-y divide-gray-200">
-              {results.map((result: any) => (
+              {results.map((result) => (
                 <li key={result.symbol} className="py-4 flex justify-between items-center">
                   <div>
                     <p className="font-semibold">{result.symbol}</p>

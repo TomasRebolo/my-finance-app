@@ -99,7 +99,7 @@ export default async function DashboardPage() {
         <div className="mt-4 grid grid-cols-1 gap-4">
           {holdingsWithCurrentPrice.length === 0 ? (
             <div className="col-span-full rounded-lg border-2 border-dashed border-gray-300 p-8 text-center text-gray-500 dark:border-gray-700 dark:text-gray-400">
-              No investments yet. Click 'Add Investment' to get started.
+              No investments yet. Click &quot;Add Investment&quot; to get started.
             </div>
           ) : (
             holdingsWithCurrentPrice.map((h) => (
@@ -134,7 +134,7 @@ export default async function DashboardPage() {
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {accounts.length === 0 ? (
             <div className="col-span-full rounded-lg border-2 border-dashed border-gray-300 p-8 text-center text-gray-500 dark:border-gray-700 dark:text-gray-400">
-              No accounts yet. Click 'Add Bank Account' to get started.
+              No accounts yet. Click &quot;Add Bank Account&quot; to get started.
             </div>
           ) : (
             accounts.map((a) => (

@@ -1,8 +1,13 @@
 "use server";
 
 import { currentUser } from "@clerk/nextjs/server";
-import { db } from "@/server/db/prisma";
 import Papa from "papaparse";
+
+type CsvRow = {
+  Description: string;
+  Amount: string;
+  Date: string;
+};
 
 export async function importCsv(formData: FormData) {
   const user = await currentUser();
@@ -20,14 +25,14 @@ export async function importCsv(formData: FormData) {
   const fileContent = await file.text();
 
   return new Promise((resolve, reject) => {
-    Papa.parse(fileContent, {
+    Papa.parse<CsvRow>(fileContent, {
       header: true,
       skipEmptyLines: true,
-      complete: async (results) => {
+      complete: async (results: Papa.ParseResult<CsvRow>) => {
         try {
           // TODO: Let user map columns
           // TODO: Validate data
-          const transactions = results.data.map((row: any) => ({
+          const transactions = results.data.map((row) => ({
             // This is an example mapping, it will need to be adjusted
             description: row.Description,
             amount: parseFloat(row.Amount),
@@ -43,7 +48,7 @@ export async function importCsv(formData: FormData) {
           reject(error);
         }
       },
-      error: (error: any) => {
+      error: (error: Papa.ParseError) => {
         reject(error);
       },
     });

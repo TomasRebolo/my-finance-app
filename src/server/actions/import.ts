@@ -1,9 +1,16 @@
 "use server";
 
 import { currentUser } from "@clerk/nextjs/server";
-import { db } from "@/server/db/prisma";
 import Papa from "papaparse";
 import * as xlsx from "xlsx";
+
+type CsvRow = {
+  Description: string;
+  Amount: string | number;
+  Date: string;
+};
+
+type XlsCell = string | number | null;
 
 export async function importFile(formData: FormData) {
   const user = await currentUser();
@@ -33,20 +40,28 @@ async function importCsv(file: File) {
   const fileContent = await file.text();
 
   return new Promise((resolve, reject) => {
-    Papa.parse(fileContent, {
+    Papa.parse<CsvRow>(fileContent, {
       header: true,
       skipEmptyLines: true,
-      complete: async (results) => {
+      complete: async (results: Papa.ParseResult<CsvRow>) => {
         try {
           // TODO: Let user map columns
           // TODO: Validate data
-          const transactions = results.data.map((row: any) => ({
+          const transactions = results.data.map((row) => {
+            const amountValue = row.Amount;
+            const amount =
+              typeof amountValue === "number"
+                ? amountValue
+                : parseFloat(amountValue);
+
             // This is an example mapping, it will need to be adjusted
-            description: row.Description,
-            amount: parseFloat(row.Amount),
-            date: new Date(row.Date),
-            // TODO: associate with an account
-          }));
+            return {
+              description: row.Description,
+              amount,
+              date: new Date(row.Date),
+              // TODO: associate with an account
+            };
+          });
 
           // Just logging for now, will insert into DB later
           console.log(transactions);
@@ -56,7 +71,7 @@ async function importCsv(file: File) {
           reject(error);
         }
       },
-      error: (error: any) => {
+      error: (error: Papa.ParseError) => {
         reject(error);
       },
     });
@@ -68,22 +83,38 @@ async function importXls(file: File) {
   const workbook = xlsx.read(arrayBuffer, { type: "buffer" });
   const sheetName = workbook.SheetNames[0];
   const worksheet = workbook.Sheets[sheetName];
-  const data = xlsx.utils.sheet_to_json(worksheet, { header: 1 });
+  const data = xlsx.utils.sheet_to_json<XlsCell[]>(worksheet, { header: 1 });
 
   // Assuming the first row is the header
-  const header: string[] = data[0] as string[];
-  const rows = data.slice(1);
+  const header = (data[0] || []) as XlsCell[];
+  const rows = data.slice(1) as XlsCell[][];
 
-  const transactions = rows.map((row: any) => {
-    const transaction: { [key: string]: any } = {};
+  const transactions = rows.map((row) => {
+    const transaction: Record<string, XlsCell> = {};
+
     header.forEach((h, i) => {
-      transaction[h] = row[i];
+      if (typeof h === "string") {
+        transaction[h] = row[i] ?? null;
+      }
     });
+
+    const descriptionValue = transaction.Description;
+    const amountValue = transaction.Amount;
+    const dateValue = transaction.Date;
+
+    const description =
+      typeof descriptionValue === "string" ? descriptionValue : "";
+    const amount =
+      typeof amountValue === "number"
+        ? amountValue
+        : parseFloat(String(amountValue ?? "0"));
+    const date = new Date(String(dateValue ?? ""));
+
     return {
       // This is an example mapping, it will need to be adjusted
-      description: transaction.Description,
-      amount: parseFloat(transaction.Amount),
-      date: new Date(transaction.Date),
+      description,
+      amount,
+      date,
       // TODO: associate with an account
     };
   });
