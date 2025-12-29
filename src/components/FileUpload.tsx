@@ -44,44 +44,40 @@ export default function FileUpload() {
   };
 
   return (
-    <div className="mt-8">
-      <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-        Import from CSV/XLS
-      </h2>
-      <p className="mt-2 text-gray-600 dark:text-gray-400">
-        Alternatively, you can upload a CSV or XLS file with your transactions.
-      </p>
-
-      <div className="mt-4">
-        <input
-          type="file"
-          accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
-          onChange={handleFileChange}
-          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-        />
+    <div className="mt-4 space-y-4">
+      <div className="rounded-xl border border-dashed border-emerald-500/40 bg-slate-900/60 p-4 text-sm text-slate-200 shadow-inner shadow-black/20">
+        <p className="font-semibold text-white">Import from CSV/XLSX</p>
+        <p className="mt-1 text-slate-400">
+          Upload broker exports and we&apos;ll reconcile holdings and cash—mirroring getquin&apos;s smooth import flow.
+        </p>
+        <label className="mt-4 flex cursor-pointer items-center justify-between rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-50 transition hover:border-emerald-400 hover:bg-emerald-500/20">
+          <span>{file ? file.name : "Choose a CSV/XLSX file"}</span>
+          <span className="rounded-full bg-emerald-500 px-3 py-1 text-xs text-white">
+            Browse
+          </span>
+          <input
+            type="file"
+            accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+        </label>
+        <p className="mt-2 text-xs text-slate-400">
+          Supported: .csv, .xls, .xlsx • We never share your files.
+        </p>
       </div>
 
-      <div className="mt-4">
-        <button
-          onClick={handleUpload}
-          disabled={!file || loading}
-          className="w-full rounded-md bg-blue-500 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-600 disabled:opacity-50"
-        >
-          {loading ? "Uploading..." : "Upload and Import"}
-        </button>
-      </div>
+      <button
+        onClick={handleUpload}
+        disabled={!file || loading}
+        className="w-full rounded-full bg-emerald-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:-translate-y-0.5 hover:bg-emerald-600 hover:shadow-emerald-500/50 disabled:translate-y-0 disabled:opacity-50"
+      >
+        {loading ? "Uploading..." : "Upload and import"}
+      </button>
 
-      {error && (
-        <div className="mt-4 text-sm text-red-600">
-          {error}
-        </div>
-      )}
+      {error && <div className="text-sm text-rose-300">{error}</div>}
 
-      {success && (
-        <div className="mt-4 text-sm text-green-600">
-          {success}
-        </div>
-      )}
+      {success && <div className="text-sm text-emerald-200">{success}</div>}
     </div>
   );
 }
