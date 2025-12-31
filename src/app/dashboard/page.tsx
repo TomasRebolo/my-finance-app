@@ -3,7 +3,9 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/server/db/prisma";
 import yahooFinance from "yahoo-finance2";
 import { ImportPortfolioButton } from "@/components/import-portfolio-button";
+import { InvestmentsList, AccountsList } from "@/components/dashboard-lists";
 import { ensureUser } from "@/server/auth/ensureUser";
+import { UserButton } from "@clerk/nextjs";
 
 function formatMoney(value: string | number, currency: string) {
   const n = typeof value === "string" ? Number(value) : value;
@@ -33,7 +35,7 @@ export default async function DashboardPage() {
     orderBy: { createdAt: "desc" },
   });
 
-  const total = accounts.reduce((sum, a) => sum + Number(a.balance), 0);
+  const totalCash = accounts.reduce((sum, a) => sum + Number(a.balance), 0);
 
   const symbols = userWithHoldings.holdings.map((h) => h.investment.symbol);
   const quotes = await fetchQuotesSafely(symbols);
@@ -49,11 +51,17 @@ export default async function DashboardPage() {
     const percentageChange = previousPrice !== 0 ? (change / previousPrice) * 100 : 0;
 
     return {
-      ...holding,
+      id: holding.id,
       currentPrice,
       change,
       percentageChange,
       currency,
+      quantity: holding.quantity.toString(),
+      investment: {
+        symbol: holding.investment.symbol,
+        name: holding.investment.name,
+        currency: holding.investment.currency,
+      },
     };
   });
 
@@ -65,241 +73,243 @@ export default async function DashboardPage() {
     (sum, h) => sum + h.change * Number(h.quantity),
     0
   );
-  const netWorth = total + totalInvestments;
+  const netWorth = totalCash + totalInvestments;
+  const dailyChangePercent = totalInvestments > 0 ? (dailyChange / (totalInvestments - dailyChange)) * 100 : 0;
   const positiveHoldings = holdingsWithCurrentPrice.filter((h) => h.change >= 0).length;
   const negativeHoldings = holdingsWithCurrentPrice.length - positiveHoldings;
 
+  // Transform accounts for the client component
+  const accountsForClient = accounts.map((a) => ({
+    id: a.id,
+    name: a.name,
+    type: a.type,
+    currency: a.currency,
+    balance: a.balance.toString(),
+    availableBalance: a.availableBalance?.toString() ?? null,
+  }));
+
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-50">
-      <div className="mx-auto max-w-6xl px-4 py-10 space-y-10">
-        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 via-emerald-600 to-slate-900 p-8 shadow-2xl ring-1 ring-white/10">
-          <div className="absolute inset-y-0 right-0 hidden w-1/3 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.15),transparent_55%)] lg:block" />
-          <div className="grid gap-8 md:grid-cols-[1.15fr,0.85fr]">
-            <div className="space-y-6">
-              <p className="text-sm uppercase tracking-wide text-emerald-50/80">
-                Inspired by getquin&apos;s clean cockpit
-              </p>
-              <div>
-                <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-                  Your portfolio, beautifully organized
-                </h1>
-                <p className="mt-2 max-w-2xl text-emerald-50/80">
-                  All bank balances, investments, and imports come together in a single, friendly view.
-                  Quickly jump into actions without hunting through menus.
-                </p>
+    <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      {/* Background decorations */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/3 -left-40 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-72 h-72 bg-purple-500/5 rounded-full blur-3xl" />
+      </div>
+
+      <div className="relative z-10">
+        {/* Header */}
+        <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-xl sticky top-0 z-20">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="flex h-16 items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-lg shadow-emerald-500/20">
+                  <WalletIcon className="h-5 w-5 text-white" />
+                </div>
+                <span className="text-lg font-bold text-white tracking-tight">WealthView</span>
               </div>
-              <div className="flex flex-wrap gap-3">
+              <div className="flex items-center gap-4">
                 <ImportPortfolioButton
-                  label="Import CSV/XLSX"
-                  className="bg-white/15 px-5 py-2.5 text-sm font-semibold text-white hover:bg-white/25"
+                  label="Import CSV"
+                  className="hidden sm:inline-flex bg-slate-700/50 hover:bg-slate-700 text-white"
+                />
+                <UserButton
+                  afterSignOutUrl="/"
+                  appearance={{
+                    elements: {
+                      avatarBox: "h-9 w-9",
+                    },
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+          {/* Portfolio Summary Hero */}
+          <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 p-6 sm:p-8 shadow-2xl">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.15),transparent_50%)]" />
+            <div className="absolute inset-y-0 right-0 w-1/3 bg-[radial-gradient(circle_at_100%_50%,rgba(255,255,255,0.1),transparent_60%)]" />
+
+            <div className="relative z-10">
+              <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+                <div>
+                  <p className="text-emerald-100/80 text-sm font-medium uppercase tracking-wider mb-2">
+                    Total Portfolio Value
+                  </p>
+                  <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white tracking-tight">
+                    {formatMoney(netWorth, "EUR")}
+                  </h1>
+                  <div className="mt-3 flex items-center gap-3">
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold ${
+                        dailyChange >= 0
+                          ? "bg-white/20 text-white"
+                          : "bg-rose-500/30 text-rose-100"
+                      }`}
+                    >
+                      <ArrowTrendIcon
+                        className={`h-4 w-4 ${dailyChange >= 0 ? "" : "rotate-180"}`}
+                      />
+                      {dailyChange >= 0 ? "+" : ""}{formatMoney(dailyChange, "EUR")} ({dailyChangePercent.toFixed(2)}%)
+                    </span>
+                    <span className="text-emerald-100/60 text-sm">today</span>
+                  </div>
+                </div>
+
+                {/* Quick stats */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:gap-4">
+                  <StatCard
+                    label="Investments"
+                    value={formatMoney(totalInvestments, "EUR")}
+                    icon={<ChartIcon className="h-4 w-4" />}
+                    color="purple"
+                  />
+                  <StatCard
+                    label="Cash"
+                    value={formatMoney(totalCash, "EUR")}
+                    icon={<BankIcon className="h-4 w-4" />}
+                    color="blue"
+                  />
+                  <StatCard
+                    label="Rising"
+                    value={positiveHoldings.toString()}
+                    icon={<TrendUpIcon className="h-4 w-4" />}
+                    color="green"
+                  />
+                  <StatCard
+                    label="Falling"
+                    value={negativeHoldings.toString()}
+                    icon={<TrendDownIcon className="h-4 w-4" />}
+                    color="red"
+                  />
+                </div>
+              </div>
+
+              {/* Quick actions */}
+              <div className="mt-6 flex flex-wrap gap-3">
+                <ImportPortfolioButton
+                  label="Import Portfolio"
+                  className="bg-white/15 hover:bg-white/25 text-white backdrop-blur-sm"
                 />
                 <Link href="/add-account">
-                  <button className="group inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 shadow-lg shadow-slate-900/10 transition hover:-translate-y-0.5 hover:shadow-xl">
+                  <button className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl">
                     <BankIcon className="h-4 w-4 text-emerald-600" />
-                    Add bank account
+                    Add Bank Account
                   </button>
                 </Link>
                 <Link href="/add-investment">
-                  <button className="group inline-flex items-center gap-2 rounded-full border border-white/30 px-5 py-2.5 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:border-white/60">
+                  <button className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-white/50 hover:bg-white/15">
                     <PlusIcon className="h-4 w-4" />
-                    Add investment
+                    Add Investment
                   </button>
                 </Link>
               </div>
             </div>
-            <div className="grid gap-4 rounded-2xl bg-white/10 p-5 backdrop-blur-md sm:grid-cols-2 sm:gap-5">
-              <StatCard
-                label="Net worth"
-                value={formatMoney(netWorth, "EUR")}
-                hint="Balances + investments"
-              />
-              <StatCard
-                label="Cash on hand"
-                value={formatMoney(total, "EUR")}
-                hint="Across linked accounts"
-              />
-              <StatCard
-                label="Invested"
-                value={formatMoney(totalInvestments, "EUR")}
-                hint={`${positiveHoldings} rising • ${negativeHoldings} falling`}
-              />
-              <StatCard
-                label="Day change"
-                value={`${dailyChange >= 0 ? "+" : ""}${formatMoney(
-                  dailyChange,
-                  "EUR"
-                )}`}
-                hint="Based on latest quotes"
-                tone={dailyChange >= 0 ? "positive" : "negative"}
-              />
-            </div>
-          </div>
-        </section>
+          </section>
 
-        <section className="space-y-4">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm uppercase tracking-wide text-emerald-400">
-                Portfolio
-              </p>
-              <h2 className="text-2xl font-semibold text-white">Investments</h2>
-              <p className="text-sm text-slate-400">
-                Quick glance inspired by getquin: holdings grouped with live price deltas.
-              </p>
-            </div>
-            <Link
-              href="/add-investment"
-              className="hidden rounded-full border border-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-emerald-400 hover:text-white md:inline-flex"
-            >
-              Manage holdings
-            </Link>
-          </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {holdingsWithCurrentPrice.length === 0 ? (
-              <div className="col-span-full rounded-2xl border border-dashed border-slate-800 bg-slate-900/60 p-8 text-center text-slate-400">
-                No investments yet. Import a CSV/XLSX or add one manually to see your cockpit come to life.
-              </div>
-            ) : (
-              holdingsWithCurrentPrice.map((h) => {
-                const positionValue = h.currentPrice * Number(h.quantity);
-                return (
-                  <div
-                    key={h.id}
-                    className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:border-emerald-400/50"
-                  >
-                    <div className="absolute inset-y-0 right-0 w-20 bg-[radial-gradient(circle_at_100%_50%,rgba(16,185,129,0.15),transparent_60%)]" />
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <div className="inline-flex items-center gap-2 rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200">
-                          {h.investment.symbol}
-                          <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-emerald-200">
-                            {h.investment.currency}
-                          </span>
-                        </div>
-                        <h3 className="mt-3 text-lg font-semibold text-white">
-                          {h.investment.name}
-                        </h3>
-                        <p className="text-sm text-slate-400">
-                          {Number(h.quantity).toLocaleString()} units @ {formatMoney(h.currentPrice, h.currency)}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs uppercase tracking-wide text-slate-400">
-                          Current value
-                        </p>
-                        <p className="text-xl font-semibold text-white">
-                          {formatMoney(positionValue, h.currency)}
-                        </p>
-                        <p
-                          className={`mt-1 inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
-                            h.change >= 0
-                              ? "bg-emerald-500/15 text-emerald-300"
-                              : "bg-rose-500/15 text-rose-300"
-                          }`}
-                        >
-                          <ArrowTrendIcon
-                            className={`h-4 w-4 ${h.change >= 0 ? "rotate-0" : "rotate-180"}`}
-                          />
-                          {h.change.toFixed(2)} ({h.percentageChange.toFixed(2)}%)
-                        </p>
-                      </div>
+          {/* Two column layout for investments and accounts */}
+          <div className="grid gap-8 lg:grid-cols-3">
+            {/* Investments Section - takes 2 columns */}
+            <section className="lg:col-span-2 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/20">
+                      <ChartIcon className="h-4 w-4 text-purple-400" />
                     </div>
+                    <h2 className="text-xl font-semibold text-white">Investments</h2>
                   </div>
-                );
-              })
-            )}
-          </div>
-        </section>
-
-        <section className="space-y-4">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm uppercase tracking-wide text-emerald-400">
-                Cash &amp; accounts
-              </p>
-              <h2 className="text-2xl font-semibold text-white">Accounts</h2>
-              <p className="text-sm text-slate-400">
-                Mirror of getquin&apos;s card stack: balances with quick navigation into details.
-              </p>
-            </div>
-            <Link
-              href="/add-account"
-              className="hidden rounded-full border border-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-emerald-400 hover:text-white md:inline-flex"
-            >
-              Add account
-            </Link>
-          </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {accounts.length === 0 ? (
-              <div className="col-span-full rounded-2xl border border-dashed border-slate-800 bg-slate-900/60 p-8 text-center text-slate-400">
-                No accounts yet. Connect a bank or import a CSV to populate this view.
-              </div>
-            ) : (
-              accounts.map((a) => (
+                  <p className="mt-1 text-sm text-slate-400">
+                    {holdingsWithCurrentPrice.length} holdings • {formatMoney(totalInvestments, "EUR")} total
+                  </p>
+                </div>
                 <Link
-                  key={a.id}
-                  href={`/accounts/${a.id}`}
-                  className="group relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-lg shadow-black/15 transition hover:-translate-y-0.5 hover:border-emerald-400/40"
+                  href="/add-investment"
+                  className="rounded-full border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 transition hover:border-purple-500/50 hover:text-white"
                 >
-                  <div className="absolute inset-y-0 right-0 w-16 bg-[radial-gradient(circle_at_90%_30%,rgba(16,185,129,0.2),transparent_60%)]" />
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="rounded-xl bg-slate-800 p-3 text-emerald-300 shadow-inner shadow-black/20">
-                        <BankIcon className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-slate-400">
-                          {a.type}
-                        </p>
-                        <h3 className="text-lg font-semibold text-white group-hover:text-emerald-200">
-                          {a.name}
-                        </h3>
-                        <p className="text-sm text-slate-400">
-                          {a.currency} • updated automatically
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs uppercase tracking-wide text-slate-400">
-                        Balance
-                      </p>
-                      <p className="text-lg font-semibold text-white">
-                        {formatMoney(a.balance.toString(), a.currency)}
-                      </p>
-                      {a.availableBalance !== null && (
-                        <p className="text-xs text-slate-400">
-                          Available{" "}
-                          <span className="font-semibold text-emerald-200">
-                            {formatMoney(a.availableBalance.toString(), a.currency)}
-                          </span>
-                        </p>
-                      )}
-                    </div>
-                  </div>
+                  Manage
                 </Link>
-              ))
-            )}
+              </div>
+
+              <InvestmentsList holdings={holdingsWithCurrentPrice} />
+            </section>
+
+            {/* Accounts Section - takes 1 column */}
+            <section className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/20">
+                      <BankIcon className="h-4 w-4 text-blue-400" />
+                    </div>
+                    <h2 className="text-xl font-semibold text-white">Accounts</h2>
+                  </div>
+                  <p className="mt-1 text-sm text-slate-400">
+                    {accounts.length} accounts • {formatMoney(totalCash, "EUR")} total
+                  </p>
+                </div>
+                <Link
+                  href="/add-account"
+                  className="rounded-full border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 transition hover:border-blue-500/50 hover:text-white"
+                >
+                  Add
+                </Link>
+              </div>
+
+              <AccountsList accounts={accountsForClient} />
+            </section>
           </div>
-        </section>
+        </div>
       </div>
     </main>
   );
 }
 
+function StatCard({
+  label,
+  value,
+  icon,
+  color,
+}: {
+  label: string;
+  value: string;
+  icon: React.ReactNode;
+  color: "purple" | "blue" | "green" | "red";
+}) {
+  const colors = {
+    purple: "bg-purple-500/20 text-purple-300",
+    blue: "bg-blue-500/20 text-blue-300",
+    green: "bg-emerald-500/20 text-emerald-300",
+    red: "bg-rose-500/20 text-rose-300",
+  };
+
+  return (
+    <div className="rounded-xl bg-white/10 backdrop-blur-sm p-3 min-w-[100px]">
+      <div className={`inline-flex items-center justify-center rounded-lg p-1.5 ${colors[color]} mb-2`}>
+        {icon}
+      </div>
+      <p className="text-xs text-emerald-100/70 uppercase tracking-wide">{label}</p>
+      <p className="text-lg font-semibold text-white mt-0.5">{value}</p>
+    </div>
+  );
+}
+
+// Icons
+function WalletIcon(props: React.ComponentProps<"svg">) {
+  return (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" />
+      <path d="M3 5v14a2 2 0 0 0 2 2h16v-5" />
+      <path d="M18 12a2 2 0 0 0 0 4h4v-4Z" />
+    </svg>
+  );
+}
+
 function BankIcon(props: React.ComponentProps<"svg">) {
   return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 21V3" />
       <path d="M5 21V12" />
       <path d="M19 21V12" />
@@ -311,64 +321,45 @@ function BankIcon(props: React.ComponentProps<"svg">) {
 
 function PlusIcon(props: React.ComponentProps<"svg">) {
   return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M5 12h14" />
       <path d="M12 5v14" />
     </svg>
   );
 }
 
-function StatCard({
-  label,
-  value,
-  hint,
-  tone,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  tone?: "positive" | "negative";
-}) {
-  const toneClasses =
-    tone === "positive"
-      ? "text-emerald-200"
-      : tone === "negative"
-        ? "text-rose-200"
-        : "text-white";
+function ChartIcon(props: React.ComponentProps<"svg">) {
   return (
-    <div className="rounded-xl bg-white/10 p-4 text-white shadow-inner shadow-black/10 backdrop-blur-sm">
-      <p className="text-xs uppercase tracking-wide text-emerald-50/80">{label}</p>
-      <p className={`mt-2 text-2xl font-semibold ${toneClasses}`}>{value}</p>
-      <p className="text-sm text-emerald-50/70">{hint}</p>
-    </div>
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 3v18h18" />
+      <path d="m19 9-5 5-4-4-3 3" />
+    </svg>
   );
 }
 
 function ArrowTrendIcon(props: React.ComponentProps<"svg">) {
   return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 17 9 11 13 15 21 7" />
       <path d="M14 7h7v7" />
+    </svg>
+  );
+}
+
+function TrendUpIcon(props: React.ComponentProps<"svg">) {
+  return (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m22 7-8.5 8.5-5-5L2 17" />
+      <path d="M16 7h6v6" />
+    </svg>
+  );
+}
+
+function TrendDownIcon(props: React.ComponentProps<"svg">) {
+  return (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m22 17-8.5-8.5-5 5L2 7" />
+      <path d="M16 17h6v-6" />
     </svg>
   );
 }
