@@ -210,32 +210,7 @@ export default async function DashboardPage() {
           </section>
 
           {/* Two column layout for investments and accounts */}
-          <div className="grid gap-8 lg:grid-cols-3">
-            {/* Investments Section - takes 2 columns */}
-            <section className="lg:col-span-2 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/20">
-                      <ChartIcon className="h-4 w-4 text-purple-400" />
-                    </div>
-                    <h2 className="text-xl font-semibold text-white">Investments</h2>
-                  </div>
-                  <p className="mt-1 text-sm text-slate-400">
-                    {holdingsWithCurrentPrice.length} holdings • {formatMoney(totalInvestments, "EUR")} total
-                  </p>
-                </div>
-                <Link
-                  href="/add-investment"
-                  className="rounded-full border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 transition hover:border-purple-500/50 hover:text-white"
-                >
-                  Manage
-                </Link>
-              </div>
-
-              <InvestmentsList holdings={holdingsWithCurrentPrice} />
-            </section>
-
+          <div className="grid gap-8">
             {/* Accounts Section - takes 1 column */}
             <section className="space-y-4">
               <div className="flex items-center justify-between">
@@ -259,6 +234,31 @@ export default async function DashboardPage() {
               </div>
 
               <AccountsList accounts={accountsForClient} />
+            </section>
+
+            {/* Investments Section - takes 2 columns */}
+            <section className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/20">
+                      <ChartIcon className="h-4 w-4 text-purple-400" />
+                    </div>
+                    <h2 className="text-xl font-semibold text-white">Investments</h2>
+                  </div>
+                  <p className="mt-1 text-sm text-slate-400">
+                    {holdingsWithCurrentPrice.length} holdings • {formatMoney(totalInvestments, "EUR")} total
+                  </p>
+                </div>
+                <Link
+                  href="/add-investment"
+                  className="rounded-full border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 transition hover:border-purple-500/50 hover:text-white"
+                >
+                  Manage
+                </Link>
+              </div>
+
+              <InvestmentsList holdings={holdingsWithCurrentPrice} />
             </section>
           </div>
         </div>

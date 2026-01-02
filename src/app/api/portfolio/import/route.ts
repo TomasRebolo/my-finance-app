@@ -14,6 +14,17 @@ type ParsedHolding = {
   currency: string;
 };
 
+// Data used for calculation
+type TransactionRow = {
+  date: string;
+  action: string;
+  symbol: string;
+  name: string;
+  quantity: number;
+  price: number;
+  currency: string;
+};
+
 const symbolKeys = ["Ticker", "Symbol", "Instrument", "Ticker Symbol"];
 const nameKeys = ["Name", "Instrument name", "Company"];
 const quantityKeys = ["Quantity", "No. of shares", "No. of Shares", "Shares", "Units"];
@@ -33,6 +44,8 @@ const currencyKeys = [
   "Currency (Price)",
   "Currency (Price per share)",
 ];
+const actionKeys = ["Action", "Type"];
+const dateKeys = ["Time", "Date"];
 
 export async function POST(req: NextRequest) {
   const { userId: clerkUserId } = await auth();
@@ -72,6 +85,7 @@ export async function POST(req: NextRequest) {
 
     let imported = 0;
     for (const holding of holdings) {
+      // Create/Update Investment Reference
       const investment = await prisma.investment.upsert({
         where: { symbol: holding.symbol },
         update: {
@@ -85,6 +99,8 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      // Update User Holding
+      // Note: We only upsert if quantity is not zero, or you might want to keep 0 quantity records
       await prisma.holding.upsert({
         where: {
           userId_investmentId: {
@@ -131,7 +147,7 @@ async function parseCsv(file: File): Promise<ParsedHolding[]> {
     throw new Error("Failed to parse CSV");
   }
 
-  return normalizeHoldings(result.data);
+  return processTransactions(result.data);
 }
 
 async function parseXls(file: File): Promise<ParsedHolding[]> {
@@ -143,31 +159,80 @@ async function parseXls(file: File): Promise<ParsedHolding[]> {
     defval: "",
   });
 
-  return normalizeHoldings(rows);
+  return processTransactions(rows);
 }
 
-function normalizeHoldings(rows: Record<string, unknown>[]): ParsedHolding[] {
-  return rows
+function processTransactions(rows: Record<string, unknown>[]): ParsedHolding[] {
+  // 1. Normalize rows into a clean structure
+  const transactions: TransactionRow[] = rows
     .map((row) => {
       const symbol = getString(row, symbolKeys);
       const name = getString(row, nameKeys) ?? symbol ?? "";
       const quantity = getNumber(row, quantityKeys);
       const price = getNumber(row, priceKeys) ?? 0;
       const currency = getString(row, currencyKeys) ?? "USD";
+      const action = getString(row, actionKeys) ?? "Buy"; // Default to buy if missing
+      const date = getString(row, dateKeys) ?? "";
 
       if (!symbol || quantity === null) {
         return null;
       }
 
-      return {
-        symbol,
-        name,
-        quantity,
-        price,
-        currency,
-      };
+      return { symbol, name, quantity, price, currency, action, date };
     })
-    .filter((value): value is ParsedHolding => value !== null);
+    .filter((t): t is TransactionRow => t !== null);
+
+  // 2. Sort by date ascending to calculate averages correctly
+  transactions.sort((a, b) => {
+    return new Date(a.date).getTime() - new Date(b.date).getTime();
+  });
+
+  // 3. Aggregate holdings by symbol
+  const holdingsMap = new Map<
+    string,
+    { quantity: number; costBasis: number; name: string; currency: string }
+  >();
+
+  for (const t of transactions) {
+    const current = holdingsMap.get(t.symbol) || {
+      quantity: 0,
+      costBasis: 0,
+      name: t.name,
+      currency: t.currency,
+    };
+
+    const actionLower = t.action.toLowerCase();
+    const isBuy = actionLower.includes("buy") || actionLower.includes("deposit");
+    const isSell = actionLower.includes("sell") || actionLower.includes("withdraw");
+
+    if (isBuy) {
+      // Calculate Weighted Average Price
+      // New Cost = (OldQty * OldCost + NewQty * NewPrice) / (OldQty + NewQty)
+      const totalCost = current.quantity * current.costBasis + t.quantity * t.price;
+      const newQuantity = current.quantity + t.quantity;
+      
+      current.quantity = newQuantity;
+      current.costBasis = newQuantity !== 0 ? totalCost / newQuantity : 0;
+    } else if (isSell) {
+      // Selling reduces quantity but doesn't change cost basis (average buy price)
+      current.quantity -= t.quantity;
+    }
+
+    // Update metadata if available
+    if (t.name) current.name = t.name;
+    if (t.currency) current.currency = t.currency;
+
+    holdingsMap.set(t.symbol, current);
+  }
+
+  // 4. Convert map back to array
+  return Array.from(holdingsMap.entries()).map(([symbol, data]) => ({
+    symbol,
+    name: data.name,
+    quantity: data.quantity,
+    price: data.costBasis, // We store the average buy price
+    currency: data.currency,
+  }));
 }
 
 function getString(row: Record<string, unknown>, keys: string[]): string | null {

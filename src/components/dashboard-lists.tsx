@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useMemo } from "react";
+import useSWR from "swr";
 
 type Holding = {
   id: string;
@@ -26,6 +27,12 @@ type Account = {
   availableBalance: string | null;
 };
 
+type Quote = {
+  symbol: string;
+  regularMarketPrice?: number;
+  regularMarketChange?: number;
+};
+
 type SortField = "name" | "value";
 type SortDirection = "asc" | "desc";
 
@@ -37,11 +44,57 @@ function formatMoney(value: string | number, currency: string) {
   }).format(n);
 }
 
-export function InvestmentsList({ holdings }: { holdings: Holding[] }) {
+const fetcher = (url: string, symbols: string[]) =>
+  fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ symbols }),
+  }).then((res) => res.json());
+
+export function InvestmentsList({ holdings: initialHoldings }: { holdings: Holding[] }) {
   const [sortField, setSortField] = useState<SortField>("value");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [showAll, setShowAll] = useState(false);
   const ITEMS_PER_PAGE = 10;
+
+  const symbols = useMemo(
+    () => initialHoldings.map((h) => h.investment.symbol),
+    [initialHoldings]
+  );
+
+  const { data: quotes } = useSWR<Quote[]>(
+    symbols.length > 0 ? ["/api/investments/quotes", symbols] : null,
+    ([url, symbols]: [string, string[]]) => fetcher(url, symbols),
+    {
+      refreshInterval: 30000, // 30 seconds
+    }
+  );
+
+  const holdings = useMemo(() => {
+    const quotesMap = new Map(quotes?.map((q) => [q.symbol, q]));
+
+    return initialHoldings.map((holding) => {
+      const quote = quotesMap.get(holding.investment.symbol);
+      if (!quote || quote.regularMarketPrice === undefined) {
+        return holding;
+      }
+
+      const currentPrice = quote.regularMarketPrice ?? holding.currentPrice;
+      const change = quote.regularMarketChange ?? holding.change;
+      const previousPrice = currentPrice - change;
+      const percentageChange =
+        previousPrice !== 0 ? (change / previousPrice) * 100 : 0;
+
+      return {
+        ...holding,
+        currentPrice,
+        change,
+        percentageChange,
+      };
+    });
+  }, [initialHoldings, quotes]);
 
   const sortedHoldings = useMemo(() => {
     return [...holdings].sort((a, b) => {
