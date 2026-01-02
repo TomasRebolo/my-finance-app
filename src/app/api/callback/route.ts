@@ -13,11 +13,12 @@ type YapilyTransaction = {
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
-  const oneTimeToken = searchParams.get("consent");
+  // In your case, this "oneTimeToken" is actually the final Consent Token
+  const consentToken = searchParams.get("consent"); 
   const institutionId = searchParams.get("institution");
 
-  if (!oneTimeToken) {
-    throw new Error("No one-time token found in callback URL.");
+  if (!consentToken) {
+    throw new Error("No consent token found in callback URL.");
   }
 
   if (!institutionId) {
@@ -25,34 +26,8 @@ export async function GET(request: NextRequest) {
   }
 
   const user = await ensureUser();
-
-  const apiKey = process.env.YAPILY_API_KEY;
-  const apiSecret = process.env.YAPILY_API_SECRET;
-
-  if (!apiKey || !apiSecret) {
-    throw new Error("Yapily API key and secret are not configured.");
-  }
-
-  const response = await fetch(
-    "https://api.yapily.com/consent-one-time-token",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Basic ${btoa(`${apiKey}:${apiSecret}`)}`,
-      },
-      body: JSON.stringify({ oneTimeToken }),
-    }
-  );
-
-  if (!response.ok) {
-    const error = await response.json();
-    console.error("Error exchanging one-time token:", error);
-    throw new Error("Could not exchange one-time token.");
-  }
-
-  const { consentToken } = await response.json();
-
+  
+  // 1. Create the Bank Connection immediately
   const bankConnection = await prisma.bankConnection.create({
     data: {
       userId: user.id,
@@ -60,73 +35,73 @@ export async function GET(request: NextRequest) {
       providerItemId: consentToken,
       consentId: consentToken,
       institutionId,
-      institutionName: "Unknown Institution", // We need a way to get this
-      accessToken: consentToken, // For Yapily, the consent token is the access token
+      institutionName: "Modelo Sandbox", 
+      accessToken: consentToken, 
     },
   });
 
+  // 2. Fetch Accounts using the token directly
+  // NOTE: We use the header "Consent", not "consent-token"
   const accountsResponse = await fetch("https://api.yapily.com/accounts", {
     headers: {
       "Content-Type": "application/json",
-      "consent-token": consentToken,
-      Authorization: `Basic ${btoa(`${apiKey}:${apiSecret}`)}`,
+      "Consent": consentToken, 
+      "Authorization": `Basic ${btoa(`${process.env.YAPILY_API_KEY}:${process.env.YAPILY_API_SECRET}`)}`,
     },
   });
 
   if (!accountsResponse.ok) {
     const error = await accountsResponse.json();
     console.error("Error fetching accounts:", error);
-    throw new Error("Could not fetch accounts.");
+    // Don't throw here, just redirect so the UI doesn't crash
+    return redirect("/dashboard?error=fetch_failed");
   }
 
   const accounts = await accountsResponse.json();
 
   for (const account of accounts.data) {
+    // Save Account
     const createdAccount = await prisma.account.create({
       data: {
         bankConnectionId: bankConnection.id,
         providerAccountId: account.id,
-        name: account.description,
+        name: account.accountNames?.[0]?.name || "Unknown Account",
         type: account.accountType,
         currency: account.currency,
-        balance: account.balance,
+        balance: account.balance || 0,
       },
     });
 
+    // 3. Fetch Transactions
     const transactionsResponse = await fetch(
       `https://api.yapily.com/accounts/${account.id}/transactions`,
       {
         headers: {
           "Content-Type": "application/json",
-          "consent-token": consentToken,
-          Authorization: `Basic ${btoa(`${apiKey}:${apiSecret}`)}`,
+          "Consent": consentToken,
+          "Authorization": `Basic ${btoa(`${process.env.YAPILY_API_KEY}:${process.env.YAPILY_API_SECRET}`)}`,
         },
       }
     );
 
-    if (!transactionsResponse.ok) {
-      const error = await transactionsResponse.json();
-      console.error(
-        `Error fetching transactions for account ${account.id}:`,
-        error
-      );
-      continue;
+    if (transactionsResponse.ok) {
+      const transactions = await transactionsResponse.json();
+      
+      // Save Transactions
+      // Yapily returns { data: [...] }
+      if (transactions.data) {
+        await prisma.transaction.createMany({
+          data: transactions.data.map((t: any) => ({
+            accountId: createdAccount.id,
+            providerTransactionId: t.id,
+            amount: t.transactionAmount.amount, // Note: structure is usually transactionAmount.amount
+            currency: t.transactionAmount.currency,
+            description: t.description || "No description",
+            date: new Date(t.bookingDate || t.date), // Use bookingDate if available
+          })),
+        });
+      }
     }
-
-    const transactions = (await transactionsResponse.json()) as {
-      data: YapilyTransaction[];
-    };
-
-    await prisma.transaction.createMany({
-      data: transactions.data.map((t) => ({
-        accountId: createdAccount.id,
-        providerTransactionId: t.id,
-        amount: t.amount,
-        currency: t.currency,
-        description: t.description,
-        date: new Date(t.date),
-      })),
-    });
   }
 
   redirect("/dashboard");

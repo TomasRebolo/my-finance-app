@@ -27,11 +27,11 @@ export async function getConsentUrl(institutionId: string) {
         Authorization: `Basic ${btoa(`${apiKey}:${apiSecret}`)}`,
       },
       body: JSON.stringify({
-        userUuid: user.id,
+        applicationUserId: user.id,
         institutionId,
         callback: callbackUrl,
         // We can ask for account and transaction information
-        feature_scope: ["ACCOUNT", "TRANSACTIONS"],
+        featureScope: ["ACCOUNT", "TRANSACTIONS"],
       }),
     }
   );
