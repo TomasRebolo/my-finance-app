@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/server/db/prisma";
 import yahooFinance from "yahoo-finance2";
 import { ImportPortfolioButton } from "@/components/import-portfolio-button";
+import { ConnectBrokerageButton } from "@/components/connect-brokerage-button";
+import { SyncPortfolioButton } from "@/components/sync-portfolio-button";
 import { InvestmentsList, AccountsList } from "@/components/dashboard-lists";
 import { ensureUser } from "@/server/auth/ensureUser";
 import { UserButton } from "@clerk/nextjs";
@@ -143,11 +145,10 @@ export default async function DashboardPage() {
                   </h1>
                   <div className="mt-3 flex items-center gap-3">
                     <span
-                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold ${
-                        dailyChange >= 0
-                          ? "bg-white/20 text-white"
-                          : "bg-rose-500/30 text-rose-100"
-                      }`}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold ${dailyChange >= 0
+                        ? "bg-white/20 text-white"
+                        : "bg-rose-500/30 text-rose-100"
+                        }`}
                     >
                       <ArrowTrendIcon
                         className={`h-4 w-4 ${dailyChange >= 0 ? "" : "rotate-180"}`}
@@ -189,8 +190,13 @@ export default async function DashboardPage() {
 
               {/* Quick actions */}
               <div className="mt-6 flex flex-wrap gap-3">
+                <ConnectBrokerageButton
+                  label="Connect Brokerage"
+                  className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
+                />
+                <SyncPortfolioButton className="border-white/30 bg-white/10 hover:border-white/50 hover:bg-white/15" />
                 <ImportPortfolioButton
-                  label="Import Portfolio"
+                  label="Import CSV"
                   className="bg-white/15 hover:bg-white/25 text-white backdrop-blur-sm"
                 />
                 <Link href="/add-account">

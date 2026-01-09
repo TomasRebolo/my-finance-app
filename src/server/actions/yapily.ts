@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { headers } from "next/headers"; // Added import
 import { ensureUser } from "@/server/auth/ensureUser";
 
 export async function getConsentUrl(institutionId: string) {
@@ -13,10 +14,19 @@ export async function getConsentUrl(institutionId: string) {
 
   const user = await ensureUser();
 
-  const callbackUrl =
-    process.env.NODE_ENV === "production"
-      ? "https://<your_production_app_url>/api/callback"
-      : "http://localhost:3000/api/callback";
+  // --- START OF CHANGES ---
+  // Get the headers from the current request
+  const headersList = await headers();
+  const host = headersList.get("host"); // e.g. "localhost:3000" or "your-app.ngrok-free.app"
+  
+  // Detect protocol (http vs https)
+  // ngrok forwards 'x-forwarded-proto', so we trust that if it exists.
+  const protocol = headersList.get("x-forwarded-proto") || (process.env.NODE_ENV === "production" ? "https" : "http");
+  
+  // Construct the base URL dynamically
+  const baseUrl = `${protocol}://${host}`;
+  const callbackUrl = `${baseUrl}/api/callback`;
+  // --- END OF CHANGES ---
 
   const response = await fetch(
     "https://api.yapily.com/account-auth-requests",
@@ -29,8 +39,7 @@ export async function getConsentUrl(institutionId: string) {
       body: JSON.stringify({
         applicationUserId: user.id,
         institutionId,
-        callback: callbackUrl,
-        // We can ask for account and transaction information
+        callback: callbackUrl, // Using the dynamic URL here
         featureScope: ["ACCOUNT", "TRANSACTIONS"],
       }),
     }
