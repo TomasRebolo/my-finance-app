@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/server/db/prisma";
 import yahooFinance from "yahoo-finance2";
 import { ImportPortfolioButton } from "@/components/import-portfolio-button";
@@ -11,6 +12,10 @@ import { InvestmentsList, AccountsList } from "@/components/dashboard-lists";
 import { ensureUser } from "@/server/auth/ensureUser";
 import { UserButton } from "@clerk/nextjs";
 
+const QUOTE_REVALIDATE_SECONDS = 60;
+const RETRY_DELAY_MS = 500;
+const RETRY_ATTEMPTS = 2;
+
 function formatMoney(value: string | number, currency: string) {
   const n = typeof value === "string" ? Number(value) : value;
   return new Intl.NumberFormat("pt-PT", {
@@ -18,6 +23,31 @@ function formatMoney(value: string | number, currency: string) {
     currency,
   }).format(n);
 }
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function quoteWithRetry(symbols: string[]) {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      return await yahooFinance.quote(symbols);
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes("Too Many Requests") || attempt === RETRY_ATTEMPTS) {
+        throw error;
+      }
+      await sleep(RETRY_DELAY_MS * (attempt + 1));
+    }
+  }
+  throw lastError ?? new Error("Failed to fetch quotes");
+}
+
+const fetchQuotesCached = unstable_cache(
+  async (symbols: string[]) => quoteWithRetry(symbols),
+  ["yahoo-finance-quotes"],
+  { revalidate: QUOTE_REVALIDATE_SECONDS }
+);
 
 // Helper to fetch exchange rates
 async function getExchangeRates(base: "EUR" | "USD") {
@@ -41,7 +71,7 @@ async function getExchangeRates(base: "EUR" | "USD") {
   };
 
   try {
-    const results = await yahooFinance.quote(symbolsToFetch);
+    const results = await fetchQuotesCached(symbolsToFetch);
     const rates: Record<string, number> = {};
     const quotes = Array.isArray(results) ? results : [results];
 
@@ -488,7 +518,7 @@ async function fetchQuotesSafely(symbols: string[]) {
   }
 
   try {
-    const result = await yahooFinance.quote(symbols);
+    const result = await fetchQuotesCached(symbols);
     const quotes = Array.isArray(result) ? result : [result];
     return quotes.filter(
       (quote): quote is NonNullable<typeof quotes[number]> =>
