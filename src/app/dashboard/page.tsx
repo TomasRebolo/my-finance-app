@@ -13,8 +13,8 @@ import { ensureUser } from "@/server/auth/ensureUser";
 import { UserButton } from "@clerk/nextjs";
 
 const QUOTE_REVALIDATE_SECONDS = 60;
-const RETRY_DELAY_MS = 500;
-const RETRY_ATTEMPTS = 2;
+const RETRY_DELAY_MS = 750;
+const RETRY_ATTEMPTS = 3;
 
 function formatMoney(value: string | number, currency: string) {
   const n = typeof value === "string" ? Number(value) : value;
@@ -34,7 +34,8 @@ async function quoteWithRetry(symbols: string[]) {
     } catch (error) {
       lastError = error;
       const message = error instanceof Error ? error.message : String(error);
-      if (!message.includes("Too Many Requests") || attempt === RETRY_ATTEMPTS) {
+      const shouldRetry = message.includes("Too Many Requests");
+      if (!shouldRetry || attempt === RETRY_ATTEMPTS) {
         throw error;
       }
       await sleep(RETRY_DELAY_MS * (attempt + 1));
@@ -43,11 +44,15 @@ async function quoteWithRetry(symbols: string[]) {
   throw lastError ?? new Error("Failed to fetch quotes");
 }
 
-const fetchQuotesCached = unstable_cache(
-  async (symbols: string[]) => quoteWithRetry(symbols),
-  ["yahoo-finance-quotes"],
-  { revalidate: QUOTE_REVALIDATE_SECONDS }
-);
+function fetchQuotesCached(symbols: string[]) {
+  const cacheKey = ["yahoo-finance-quotes", symbols.join(",")];
+  const cachedFetcher = unstable_cache(
+    async () => quoteWithRetry(symbols),
+    cacheKey,
+    { revalidate: QUOTE_REVALIDATE_SECONDS }
+  );
+  return cachedFetcher();
+}
 
 // Helper to fetch exchange rates
 async function getExchangeRates(base: "EUR" | "USD") {
@@ -111,10 +116,11 @@ async function getExchangeRates(base: "EUR" | "USD") {
 }
 
 export default async function DashboardPage({
-  searchParams: { currency: currencyParam },
+  searchParams,
 }: {
-  searchParams: { currency?: string };
+  searchParams: Promise<{ currency?: string }>;
 }) {
+  const { currency: currencyParam } = await searchParams;
   const user = await ensureUser();
   const preferredCurrency = (currencyParam === "USD" ? "USD" : "EUR") as "EUR" | "USD";
 
