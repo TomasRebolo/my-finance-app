@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/server/db/prisma";
-import snaptradeClient, { getOrRegisterSnaptradeUser } from "@/server/snaptrade/client";
+import snaptradeClient from "@/server/snaptrade/client";
 
 export async function POST() {
     const { userId: clerkUserId } = await auth();
@@ -11,7 +11,7 @@ export async function POST() {
     }
 
     try {
-        const user = await prisma.user.findUnique({ where: { clerkUserId } });
+        const user = await prisma.user.findUnique({ where: { clerkUserId } }) as any;
         if (!user) {
             return NextResponse.json({ error: "User not found" }, { status: 404 });
         }
@@ -25,10 +25,14 @@ export async function POST() {
         }
 
         // Register with SnapTrade using Clerk user ID
-        const snaptradeUser = await getOrRegisterSnaptradeUser(clerkUserId);
+        const response = await snaptradeClient.authentication.registerSnapTradeUser({
+            userId: clerkUserId,
+        });
+
+        const snaptradeUser = response.data;
 
         // Store SnapTrade credentials in database
-        await prisma.user.update({
+        await (prisma as any).user.update({
             where: { id: user.id },
             data: {
                 snaptradeUserId: snaptradeUser.userId,

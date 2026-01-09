@@ -12,7 +12,7 @@ export async function GET() {
     }
 
     try {
-        const user = await prisma.user.findUnique({ where: { clerkUserId } });
+        const user = await prisma.user.findUnique({ where: { clerkUserId } }) as any;
         if (!user) {
             return NextResponse.json({ error: "User not found" }, { status: 404 });
         }
@@ -63,7 +63,7 @@ export async function DELETE(request: NextRequest) {
             );
         }
 
-        const user = await prisma.user.findUnique({ where: { clerkUserId } });
+        const user = await prisma.user.findUnique({ where: { clerkUserId } }) as any;
         if (!user || !user.snaptradeUserId || !user.snaptradeUserSecret) {
             return NextResponse.json({ error: "User not found" }, { status: 404 });
         }
@@ -75,13 +75,30 @@ export async function DELETE(request: NextRequest) {
             authorizationId,
         });
 
-        // Delete from our database
-        await prisma.brokerageConnection.deleteMany({
+        // First finding the connection to get its accounts
+        const connection = await (prisma as any).brokerageConnection.findFirst({
             where: {
                 userId: user.id,
                 snaptradeConnectionId: authorizationId,
             },
+            include: { brokerageAccounts: true }
         });
+
+        if (connection) {
+            const accountIds = connection.brokerageAccounts.map((a: any) => a.id);
+
+            // Delete holdings associated with these accounts
+            if (accountIds.length > 0) {
+                await (prisma as any).holding.deleteMany({
+                    where: { brokerageAccountId: { in: accountIds } }
+                });
+            }
+
+            // Delete from our database
+            await (prisma as any).brokerageConnection.delete({
+                where: { id: connection.id }
+            });
+        }
 
         return NextResponse.json({ success: true });
     } catch (error: any) {

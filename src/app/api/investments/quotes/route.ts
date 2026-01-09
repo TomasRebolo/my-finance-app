@@ -2,20 +2,38 @@ import { NextResponse } from "next/server";
 import { ensureUser } from "@/server/auth/ensureUser";
 import yahooFinance from "yahoo-finance2";
 
+// Simple in-memory cache
+const cache = new Map<string, { data: any, timestamp: number }>();
+const CACHE_TTL = 60 * 1000; // 60 seconds
+
 async function fetchQuotesSafely(symbols: string[]) {
   if (symbols.length === 0) {
     return [];
   }
 
+  // Check cache (key is sorted symbols joined)
+  const cacheKey = [...symbols].sort().join(",");
+  const cached = cache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data;
+  }
+
   try {
     const result = await yahooFinance.quote(symbols);
     const quotes = Array.isArray(result) ? result : [result];
-    return quotes.filter(
+    const validQuotes = quotes.filter(
       (quote): quote is NonNullable<typeof quotes[number]> =>
         Boolean(quote && "symbol" in quote)
     );
+
+    // Update cache
+    cache.set(cacheKey, { data: validQuotes, timestamp: Date.now() });
+
+    return validQuotes;
   } catch (error) {
     console.error("Failed to fetch quotes from Yahoo Finance", error);
+    // Return cached stale data if available, otherwise empty
+    if (cached) return cached.data;
     return [];
   }
 }

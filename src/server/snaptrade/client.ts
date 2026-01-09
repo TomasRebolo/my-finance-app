@@ -1,4 +1,4 @@
-import Snaptrade from "snaptrade-typescript-sdk";
+import { Snaptrade } from "snaptrade-typescript-sdk";
 
 // Initialize SnapTrade client with credentials from environment
 const client = new Snaptrade({
@@ -8,22 +8,3 @@ const client = new Snaptrade({
 
 export default client;
 
-// Helper: Get or register a SnapTrade user
-export async function getOrRegisterSnaptradeUser(userId: string) {
-  try {
-    // Try to get existing user first
-    const response = await client.authentication.getUserJWT({
-      userId,
-    });
-    return response.data;
-  } catch (error: any) {
-    // If user doesn't exist (404), register them
-    if (error?.response?.status === 404) {
-      const registerResponse = await client.authentication.registerSnapTradeUser({
-        userId,
-      });
-      return registerResponse.data;
-    }
-    throw error;
-  }
-}

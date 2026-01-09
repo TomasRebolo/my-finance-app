@@ -126,6 +126,7 @@ model Investment {
   name      String
   currency  String
   lastPrice Decimal? @db.Decimal(18, 2)
+  logoUrl   String?
   updatedAt DateTime @updatedAt
 
   holdings Holding[]

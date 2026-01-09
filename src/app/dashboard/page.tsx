@@ -5,6 +5,8 @@ import yahooFinance from "yahoo-finance2";
 import { ImportPortfolioButton } from "@/components/import-portfolio-button";
 import { ConnectBrokerageButton } from "@/components/connect-brokerage-button";
 import { SyncPortfolioButton } from "@/components/sync-portfolio-button";
+import { ResetDataButton } from "@/components/reset-data-button";
+import { CurrencyToggle } from "@/components/currency-toggle";
 import { InvestmentsList, AccountsList } from "@/components/dashboard-lists";
 import { ensureUser } from "@/server/auth/ensureUser";
 import { UserButton } from "@clerk/nextjs";
@@ -17,8 +19,74 @@ function formatMoney(value: string | number, currency: string) {
   }).format(n);
 }
 
-export default async function DashboardPage() {
+// Helper to fetch exchange rates
+async function getExchangeRates(base: "EUR" | "USD") {
+  const target = base;
+  const symbolsToFetch = [];
+
+  if (target === "EUR") {
+    symbolsToFetch.push("USDEUR=X"); // USD to EUR
+    symbolsToFetch.push("GBPEUR=X"); // GBP to EUR
+  } else {
+    symbolsToFetch.push("EURUSD=X"); // EUR to USD
+    symbolsToFetch.push("GBPUSD=X"); // GBP to USD
+  }
+
+  // Hardcoded fallbacks
+  const fallbacks: Record<string, number> = {
+    "USDEUR=X": 0.95,
+    "GBPEUR=X": 1.18,
+    "EURUSD=X": 1.05,
+    "GBPUSD=X": 1.22,
+  };
+
+  try {
+    const results = await yahooFinance.quote(symbolsToFetch);
+    const rates: Record<string, number> = {};
+    const quotes = Array.isArray(results) ? results : [results];
+
+    quotes.forEach(q => {
+      if (q.symbol === "USDEUR=X") rates["USD"] = q.regularMarketPrice || fallbacks["USDEUR=X"];
+      if (q.symbol === "GBPEUR=X") rates["GBP"] = q.regularMarketPrice || fallbacks["GBPEUR=X"];
+      if (q.symbol === "EURUSD=X") rates["EUR"] = q.regularMarketPrice || fallbacks["EURUSD=X"];
+      if (q.symbol === "GBPUSD=X") rates["GBP"] = q.regularMarketPrice || fallbacks["GBPUSD=X"];
+    });
+
+    // Ensure all requested rates exist
+    if (target === "EUR") {
+      if (!rates["USD"]) rates["USD"] = fallbacks["USDEUR=X"];
+      if (!rates["GBP"]) rates["GBP"] = fallbacks["GBPEUR=X"];
+    } else {
+      if (!rates["EUR"]) rates["EUR"] = fallbacks["EURUSD=X"];
+      if (!rates["GBP"]) rates["GBP"] = fallbacks["GBPUSD=X"];
+    }
+
+    // Base to Base is always 1
+    rates[base] = 1;
+
+    return rates;
+  } catch (e) {
+    console.error("Failed to fetch rates, using fallbacks");
+    const rates: Record<string, number> = {};
+    if (target === "EUR") {
+      rates["USD"] = fallbacks["USDEUR=X"];
+      rates["GBP"] = fallbacks["GBPEUR=X"];
+    } else {
+      rates["EUR"] = fallbacks["EURUSD=X"];
+      rates["GBP"] = fallbacks["GBPUSD=X"];
+    }
+    rates[base] = 1;
+    return rates;
+  }
+}
+
+export default async function DashboardPage({
+  searchParams: { currency: currencyParam },
+}: {
+  searchParams: { currency?: string };
+}) {
   const user = await ensureUser();
+  const preferredCurrency = (currencyParam === "USD" ? "USD" : "EUR") as "EUR" | "USD";
 
   const userWithHoldings = await prisma.user.findUnique({
     where: { id: user.id },
@@ -32,12 +100,28 @@ export default async function DashboardPage() {
   });
   if (!userWithHoldings) redirect("/");
 
+  const rates = await getExchangeRates(preferredCurrency);
+
+  // Helper to convert any amount to preferred currency
+  const convert = (amount: number, fromCurrency: string) => {
+    if (fromCurrency === preferredCurrency) return amount;
+    const from = fromCurrency.toUpperCase();
+    if (rates[from]) {
+      return amount * rates[from];
+    }
+    return amount;
+  };
+
   const accounts = await prisma.account.findMany({
     where: { bankConnection: { userId: user.id } },
     orderBy: { createdAt: "desc" },
   });
 
-  const totalCash = accounts.reduce((sum, a) => sum + Number(a.balance), 0);
+  const totalCash = accounts.reduce((sum, a) => {
+    const val = Number(a.balance);
+    const converted = convert(val, a.currency);
+    return sum + converted;
+  }, 0);
 
   const symbols = userWithHoldings.holdings.map((h) => h.investment.symbol);
   const quotes = await fetchQuotesSafely(symbols);
@@ -45,34 +129,60 @@ export default async function DashboardPage() {
   const holdingsWithCurrentPrice = userWithHoldings.holdings.map((holding) => {
     const quote = quotes.find((q) => q.symbol === holding.investment.symbol);
     const fallbackPrice = Number(holding.price) || 0;
-    const currentPrice = quote?.regularMarketPrice ?? fallbackPrice;
-    const change = quote?.regularMarketChange ?? 0;
-    const currency = holding.investment.currency;
+    let currency = quote?.currency || holding.investment.currency;
+    let currentPrice = quote?.regularMarketPrice ?? fallbackPrice;
 
-    const previousPrice = currentPrice - change;
-    const percentageChange = previousPrice !== 0 ? (change / previousPrice) * 100 : 0;
+    // Fix for LSE stocks quoted in pence (GBp)
+    if (currency === "GBp") {
+      currentPrice = currentPrice / 100;
+      currency = "GBP";
+    } else if (holding.investment.symbol.endsWith(".L") && currentPrice > 500) {
+      // Heuristic: If it's a London stock and price is > 500, it's likely in pence
+      // regardless of what the currency says (e.g. if it incorrectly says USD or GBP)
+      currentPrice = currentPrice / 100;
+      currency = "GBP";
+    }
+
+    const change = quote?.regularMarketChange ?? 0;
+    // Adjust change value as well if in pence
+    const adjustedChange = quote?.currency === "GBp" ? change / 100 : change;
+
+    const previousPrice = currentPrice - adjustedChange;
+    const percentageChange = previousPrice !== 0 ? (adjustedChange / previousPrice) * 100 : 0;
+
+    // Convert values to preferred currency for display
+    const convertedPrice = convert(currentPrice, currency);
+    const convertedChange = convert(adjustedChange, currency);
 
     return {
       id: holding.id,
-      currentPrice,
-      change,
+      currentPrice: convertedPrice,
+      change: convertedChange,
       percentageChange,
-      currency,
+      currency: preferredCurrency, // Display in preferred currency
       quantity: holding.quantity.toString(),
       investment: {
         symbol: holding.investment.symbol,
         name: holding.investment.name,
-        currency: holding.investment.currency,
+        currency: preferredCurrency, // Override here too for consistency if needed, or keep original? 
+
+        logoUrl: holding.investment.logoUrl,
       },
     };
   });
 
   const totalInvestments = holdingsWithCurrentPrice.reduce(
-    (sum, h) => sum + h.currentPrice * Number(h.quantity),
+    (sum, h) => {
+      const val = h.currentPrice * Number(h.quantity);
+      return sum + convert(val, h.currency);
+    },
     0
   );
   const dailyChange = holdingsWithCurrentPrice.reduce(
-    (sum, h) => sum + h.change * Number(h.quantity),
+    (sum, h) => {
+      const val = h.change * Number(h.quantity);
+      return sum + convert(val, h.currency);
+    },
     0
   );
   const netWorth = totalCash + totalInvestments;
@@ -111,6 +221,7 @@ export default async function DashboardPage() {
                 <span className="text-lg font-bold text-white tracking-tight">WealthView</span>
               </div>
               <div className="flex items-center gap-4">
+                <CurrencyToggle />
                 <ImportPortfolioButton
                   label="Import CSV"
                   className="hidden sm:inline-flex bg-slate-700/50 hover:bg-slate-700 text-white"
@@ -141,7 +252,7 @@ export default async function DashboardPage() {
                     Total Portfolio Value
                   </p>
                   <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white tracking-tight">
-                    {formatMoney(netWorth, "EUR")}
+                    {formatMoney(netWorth, preferredCurrency)}
                   </h1>
                   <div className="mt-3 flex items-center gap-3">
                     <span
@@ -153,7 +264,7 @@ export default async function DashboardPage() {
                       <ArrowTrendIcon
                         className={`h-4 w-4 ${dailyChange >= 0 ? "" : "rotate-180"}`}
                       />
-                      {dailyChange >= 0 ? "+" : ""}{formatMoney(dailyChange, "EUR")} ({dailyChangePercent.toFixed(2)}%)
+                      {dailyChange >= 0 ? "+" : ""}{formatMoney(dailyChange, preferredCurrency)} ({dailyChangePercent.toFixed(2)}%)
                     </span>
                     <span className="text-emerald-100/60 text-sm">today</span>
                   </div>
@@ -163,13 +274,13 @@ export default async function DashboardPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:gap-4">
                   <StatCard
                     label="Investments"
-                    value={formatMoney(totalInvestments, "EUR")}
+                    value={formatMoney(totalInvestments, preferredCurrency)}
                     icon={<ChartIcon className="h-4 w-4" />}
                     color="purple"
                   />
                   <StatCard
                     label="Cash"
-                    value={formatMoney(totalCash, "EUR")}
+                    value={formatMoney(totalCash, preferredCurrency)}
                     icon={<BankIcon className="h-4 w-4" />}
                     color="blue"
                   />
@@ -195,6 +306,7 @@ export default async function DashboardPage() {
                   className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
                 />
                 <SyncPortfolioButton className="border-white/30 bg-white/10 hover:border-white/50 hover:bg-white/15" />
+                <ResetDataButton className="border-red-900/50 bg-red-900/10 hover:bg-red-900/30" />
                 <ImportPortfolioButton
                   label="Import CSV"
                   className="bg-white/15 hover:bg-white/25 text-white backdrop-blur-sm"

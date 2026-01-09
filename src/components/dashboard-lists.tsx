@@ -15,6 +15,7 @@ type Holding = {
     symbol: string;
     name: string;
     currency: string;
+    logoUrl?: string | null;
   };
 };
 
@@ -59,42 +60,12 @@ export function InvestmentsList({ holdings: initialHoldings }: { holdings: Holdi
   const [showAll, setShowAll] = useState(false);
   const ITEMS_PER_PAGE = 10;
 
-  const symbols = useMemo(
-    () => initialHoldings.map((h) => h.investment.symbol),
-    [initialHoldings]
-  );
-
-  const { data: quotes } = useSWR<Quote[]>(
-    symbols.length > 0 ? ["/api/investments/quotes", symbols] : null,
-    ([url, symbols]: [string, string[]]) => fetcher(url, symbols),
-    {
-      refreshInterval: 30000, // 30 seconds
-    }
-  );
+  // Removed SWR polling to avoid rate limits and currency mismatch issues.
+  // The server (page.tsx) handles rate fetching and currency conversion correctly.
 
   const holdings = useMemo(() => {
-    const quotesMap = new Map(quotes?.map((q) => [q.symbol, q]));
-
-    return initialHoldings.map((holding) => {
-      const quote = quotesMap.get(holding.investment.symbol);
-      if (!quote || quote.regularMarketPrice === undefined) {
-        return holding;
-      }
-
-      const currentPrice = quote.regularMarketPrice ?? holding.currentPrice;
-      const change = quote.regularMarketChange ?? holding.change;
-      const previousPrice = currentPrice - change;
-      const percentageChange =
-        previousPrice !== 0 ? (change / previousPrice) * 100 : 0;
-
-      return {
-        ...holding,
-        currentPrice,
-        change,
-        percentageChange,
-      };
-    });
-  }, [initialHoldings, quotes]);
+    return initialHoldings; // Use server-provided converted data directly
+  }, [initialHoldings]);
 
   const sortedHoldings = useMemo(() => {
     return [...holdings].sort((a, b) => {
@@ -143,11 +114,10 @@ export function InvestmentsList({ holdings: initialHoldings }: { holdings: Holdi
         <span className="text-sm text-slate-400">Sort by:</span>
         <button
           onClick={() => toggleSort("name")}
-          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition ${
-            sortField === "name"
-              ? "bg-emerald-500/20 text-emerald-300"
-              : "bg-slate-700/50 text-slate-300 hover:bg-slate-700"
-          }`}
+          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition ${sortField === "name"
+            ? "bg-emerald-500/20 text-emerald-300"
+            : "bg-slate-700/50 text-slate-300 hover:bg-slate-700"
+            }`}
         >
           Name
           {sortField === "name" && (
@@ -156,11 +126,10 @@ export function InvestmentsList({ holdings: initialHoldings }: { holdings: Holdi
         </button>
         <button
           onClick={() => toggleSort("value")}
-          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition ${
-            sortField === "value"
-              ? "bg-emerald-500/20 text-emerald-300"
-              : "bg-slate-700/50 text-slate-300 hover:bg-slate-700"
-          }`}
+          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition ${sortField === "value"
+            ? "bg-emerald-500/20 text-emerald-300"
+            : "bg-slate-700/50 text-slate-300 hover:bg-slate-700"
+            }`}
         >
           Value
           {sortField === "value" && (
@@ -180,8 +149,12 @@ export function InvestmentsList({ holdings: initialHoldings }: { holdings: Holdi
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500/20 to-blue-500/20 text-xs font-bold text-white">
-                    {h.investment.symbol.slice(0, 2)}
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500/20 to-blue-500/20 text-xs font-bold text-white overflow-hidden">
+                    {h.investment.logoUrl ? (
+                      <img src={h.investment.logoUrl} alt={h.investment.symbol} className="h-full w-full object-contain p-1" />
+                    ) : (
+                      h.investment.symbol.slice(0, 2)
+                    )}
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -203,11 +176,10 @@ export function InvestmentsList({ holdings: initialHoldings }: { holdings: Holdi
                     {formatMoney(positionValue, h.currency)}
                   </p>
                   <p
-                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
-                      h.change >= 0
-                        ? "bg-emerald-500/15 text-emerald-300"
-                        : "bg-rose-500/15 text-rose-300"
-                    }`}
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${h.change >= 0
+                      ? "bg-emerald-500/15 text-emerald-300"
+                      : "bg-rose-500/15 text-rose-300"
+                      }`}
                   >
                     <ArrowTrendIcon
                       className={`h-3 w-3 ${h.change >= 0 ? "" : "rotate-180"}`}
@@ -299,11 +271,10 @@ export function AccountsList({ accounts }: { accounts: Account[] }) {
         <span className="text-sm text-slate-400">Sort by:</span>
         <button
           onClick={() => toggleSort("name")}
-          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition ${
-            sortField === "name"
-              ? "bg-emerald-500/20 text-emerald-300"
-              : "bg-slate-700/50 text-slate-300 hover:bg-slate-700"
-          }`}
+          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition ${sortField === "name"
+            ? "bg-emerald-500/20 text-emerald-300"
+            : "bg-slate-700/50 text-slate-300 hover:bg-slate-700"
+            }`}
         >
           Name
           {sortField === "name" && (
@@ -312,11 +283,10 @@ export function AccountsList({ accounts }: { accounts: Account[] }) {
         </button>
         <button
           onClick={() => toggleSort("value")}
-          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition ${
-            sortField === "value"
-              ? "bg-emerald-500/20 text-emerald-300"
-              : "bg-slate-700/50 text-slate-300 hover:bg-slate-700"
-          }`}
+          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition ${sortField === "value"
+            ? "bg-emerald-500/20 text-emerald-300"
+            : "bg-slate-700/50 text-slate-300 hover:bg-slate-700"
+            }`}
         >
           Balance
           {sortField === "value" && (

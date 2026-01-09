@@ -11,7 +11,7 @@ export async function POST() {
     }
 
     try {
-        const user = await prisma.user.findUnique({ where: { clerkUserId } });
+        const user = await prisma.user.findUnique({ where: { clerkUserId } }) as any;
         if (!user) {
             return NextResponse.json({ error: "User not found" }, { status: 404 });
         }
@@ -36,8 +36,16 @@ export async function POST() {
             connectionPortalVersion: "v3" as any,
         });
 
+        // The response data is a union type, we need to access the redirectURI property
+        const redirectUrl = (response.data as any).redirectURI || (response.data as any).redirect_uri;
+
+        if (!redirectUrl) {
+            console.error('No redirect URL in response:', response.data);
+            throw new Error('Invalid response from SnapTrade - missing redirect URL');
+        }
+
         return NextResponse.json({
-            redirectUrl: response.data.redirectURI,
+            redirectUrl,
         });
     } catch (error: any) {
         console.error("Failed to generate connection URL:", error);
